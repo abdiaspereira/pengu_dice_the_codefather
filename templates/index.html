@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pengu Dice — Web</title>
+
+    <!-- TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Socket.IO -->
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+
+    <style>
+      /* Fondo con degradado en las 4 esquinas */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background:
+          radial-gradient(circle at top left, red, transparent 60%),
+          radial-gradient(circle at top right, yellow, transparent 60%),
+          radial-gradient(circle at bottom left, green, transparent 60%),
+          radial-gradient(circle at bottom right, blue, transparent 60%);
+        z-index: -1;
+      }
+    </style>
+  </head>
+
+  <body class="text-gray-100 font-sans min-h-screen flex flex-col relative overflow-hidden">
+    <!-- Header -->
+    <header class="bg-gray-800 bg-opacity-80 shadow-lg py-4 mb-6">
+      <h1 class="text-3xl text-center font-bold text-white drop-shadow-md">
+        🎮 Pengu Dice 🐧 Webpage
+      </h1>
+    </header>
+
+    <!-- Contenido principal -->
+    <main class="flex flex-col items-center flex-grow space-y-6">
+      <!-- Estado -->
+      <div id="statusBox" class="px-4 py-2 bg-gray-800 bg-opacity-70 rounded-lg shadow">
+        Estado: <span id="status" class="font-bold text-yellow-400">Conectando...</span>
+      </div>
+
+      <!-- Imagen y botón -->
+      <div class="flex flex-col justify-center items-center flex-grow space-y-6">
+        <img id="penguinWow" src="{{ url_for('static', filename='pengu_wow.png') }}" alt="Pingüino WOW"
+          class="hidden w-64 h-auto animate-bounce" />
+
+        <img src="{{ url_for('static', filename='pengu_dice.png') }}" alt="Pingüino" class="w-64 h-auto">
+
+        <button id="startBtn"
+          class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-6 py-3 rounded-xl shadow-lg transition">
+          ▶️ Iniciar Juego
+        </button>
+      </div>
+
+      <!-- Panel de puntaje -->
+      <div id="scorePanel" class="text-center hidden">
+        <h2 class="text-xl mb-2 text-gray-300">Puntaje final</h2>
+        <p id="finalScore" class="text-4xl font-bold text-emerald-400">0</p>
+        <div class="mt-4">
+          <input id="playerName" type="text" placeholder="Tu nombre"
+            class="px-3 py-2 rounded bg-gray-800 border border-gray-600 focus:outline-none focus:ring focus:ring-emerald-500" />
+          <button id="saveScore"
+            class="ml-2 bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded-lg font-semibold">💾 Guardar Puntaje</button>
+        </div>
+      </div>
+
+      <!-- Ranking -->
+      <section class="w-full max-w-2xl">
+        <h2 class="text-2xl text-center font-semibold mb-3 text-emerald-300">
+          🏆 Ranking Histórico
+        </h2>
+        <div class="bg-gray-800 bg-opacity-70 rounded-lg shadow overflow-hidden">
+          <table class="min-w-full divide-y divide-gray-700">
+            <thead class="bg-gray-700">
+              <tr>
+                <th class="px-4 py-2 text-left">Jugador</th>
+                <th class="px-4 py-2 text-right">Puntaje</th>
+                <th class="px-4 py-2 text-right">Fecha</th>
+              </tr>
+            </thead>
+            <tbody id="rankingBody" class="divide-y divide-gray-700">
+              {% for s in scores %}
+              <tr>
+                <td class="px-4 py-2">{{ s.name }}</td>
+                <td class="px-4 py-2 text-right">{{ s.score }}</td>
+                <td class="px-4 py-2 text-right">{{ s.timestamp.strftime('%Y-%m-%d') }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Botón eliminar DB -->
+        <div class="flex justify-center mt-4">
+          <button id="deleteDbBtn"
+            class="bg-red-600 hover:bg-red-700 text-white font-semibold px-6 py-3 rounded-xl shadow-lg transition">
+            🗑️ Eliminar Base de Datos
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center text-gray-300 py-4 text-sm mt-10">
+      Desarrollado por the_codefather 💻 | Flask + Socket.IO + Arduino
+    </footer>
+
+    <!-- Script principal -->
+    <script>
+      const socket = io();
+      const statusEl = document.getElementById("status");
+      const scorePanel = document.getElementById("scorePanel");
+      const finalScoreEl = document.getElementById("finalScore");
+      const playerNameEl = document.getElementById("playerName");
+      const penguin = document.getElementById("penguinWow");
+
+      // Estado de conexión
+      socket.on("connect", () => {
+        statusEl.textContent = "Conectado ✅";
+        statusEl.className = "font-bold text-emerald-400";
+      });
+
+      socket.on("disconnect", () => {
+        statusEl.textContent = "Desconectado ❌";
+        statusEl.className = "font-bold text-red-400";
+      });
+
+      socket.on("status", (data) => {
+        statusEl.textContent = data.status === "ready" ? "Listo 🎯" : data.status;
+      });
+
+      // Iniciar juego
+      document.getElementById("startBtn").addEventListener("click", async () => {
+        const res = await fetch("/start", { method: "POST" });
+        const data = await res.json();
+        if (data.status === "sent") {
+          statusEl.textContent = "Juego iniciado 🚀";
+          statusEl.className = "font-bold text-blue-400";
+        } else {
+          alert("⚠️ No se pudo iniciar el juego (Arduino no conectado)");
+        }
+      });
+
+      // Juego finalizado
+      socket.on("game_over", (data) => {
+        scorePanel.classList.remove("hidden");
+        finalScoreEl.textContent = data.score;
+        statusEl.textContent = "Juego finalizado 🏁";
+        statusEl.className = "font-bold text-yellow-400";
+      });
+
+      // Evento de nivel
+      socket.on("level_up", () => {
+        penguin.classList.remove("hidden");
+        setTimeout(() => penguin.classList.add("hidden"), 2500);
+      });
+
+      // Guardar puntaje
+      document.getElementById("saveScore").addEventListener("click", async () => {
+        const name = playerNameEl.value || "Anon";
+        const score = parseInt(finalScoreEl.textContent);
+
+        const res = await fetch("/submit_score", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, score }),
+        });
+        const result = await res.json();
+        if (result.ok) {
+          alert("✅ Puntaje guardado!");
+          playerNameEl.value = "";
+        }
+      });
+
+      // Nuevo puntaje
+      socket.on("new_score", (data) => {
+        const table = document.getElementById("rankingBody");
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td class="px-4 py-2">${data.name}</td>
+          <td class="px-4 py-2 text-right">${data.score}</td>
+          <td class="px-4 py-2 text-right">${new Date().toISOString().split("T")[0]}</td>
+        `;
+        table.prepend(row);
+      });
+
+      // Eliminar base de datos
+      document.getElementById("deleteDbBtn").addEventListener("click", async () => {
+        if (!confirm("⚠️ Esto eliminará toda la base de datos. ¿Seguro?")) return;
+        const res = await fetch("/delete_db", { method: "POST" });
+        const data = await res.json();
+
+        if (data.ok) {
+          alert("✅ " + data.msg);
+          location.reload();
+        } else {
+          alert("⚠️ " + data.msg);
+        }
+      });
+    </script>
+  </body>
+</html>
