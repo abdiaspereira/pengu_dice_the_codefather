@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pengu Dice — Web</title>
+    <title>Pengu Dice – Web</title>
 
     <!-- TailwindCSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -24,10 +24,29 @@
           radial-gradient(circle at bottom right, blue, transparent 60%);
         z-index: -1;
       }
+
+      /* Confeti */
+      .confetti {
+        position: fixed;
+        width: 10px;
+        height: 10px;
+        background: #f0f;
+        position: fixed;
+        left: 50%;
+        animation: confetti-fall 3s linear forwards;
+        z-index: 1000;
+      }
+
+      @keyframes confetti-fall {
+        to {
+          transform: translateY(100vh) rotate(360deg);
+          opacity: 0;
+        }
+      }
     </style>
   </head>
 
-  <body class="text-gray-100 font-sans min-h-screen flex flex-col relative overflow-hidden">
+  <body class="text-gray-100 font-sans min-h-screen flex flex-col relative overflow-y-auto">
     <!-- Header -->
     <header class="bg-gray-800 bg-opacity-80 shadow-lg py-4 mb-6">
       <h1 class="text-3xl text-center font-bold text-white drop-shadow-md">
@@ -36,7 +55,7 @@
     </header>
 
     <!-- Contenido principal -->
-    <main class="flex flex-col items-center flex-grow space-y-6">
+    <main class="flex flex-col items-center flex-grow space-y-6 pb-10">
       <!-- Estado -->
       <div id="statusBox" class="px-4 py-2 bg-gray-800 bg-opacity-70 rounded-lg shadow">
         Estado: <span id="status" class="font-bold text-yellow-400">Conectando...</span>
@@ -44,13 +63,10 @@
 
       <!-- Imagen y botón -->
       <div class="flex flex-col justify-center items-center flex-grow space-y-6">
-        <img id="penguinWow" src="{{ url_for('static', filename='pengu_wow.png') }}" alt="Pingüino WOW"
-          class="hidden w-64 h-auto animate-bounce" />
-
         <img src="{{ url_for('static', filename='pengu_dice.png') }}" alt="Pingüino" class="w-64 h-auto">
 
         <button id="startBtn"
-          class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-6 py-3 rounded-xl shadow-lg transition">
+          class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-6 py-3 rounded-xl shadow-lg transition disabled:bg-gray-500 disabled:cursor-not-allowed disabled:hover:bg-gray-500">
           ▶️ Iniciar Juego
         </button>
       </div>
@@ -70,7 +86,7 @@
       <!-- Ranking -->
       <section class="w-full max-w-2xl">
         <h2 class="text-2xl text-center font-semibold mb-3 text-emerald-300">
-          🏆 Ranking Histórico
+          🏆 Puntaje Histórico
         </h2>
         <div class="bg-gray-800 bg-opacity-70 rounded-lg shadow overflow-hidden">
           <table class="min-w-full divide-y divide-gray-700">
@@ -115,7 +131,29 @@
       const scorePanel = document.getElementById("scorePanel");
       const finalScoreEl = document.getElementById("finalScore");
       const playerNameEl = document.getElementById("playerName");
-      const penguin = document.getElementById("penguinWow");
+      const startBtn = document.getElementById("startBtn");
+
+      let gameInProgress = false;
+
+      // Función para crear confeti
+      function createConfetti() {
+        const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffa500', '#ff1493'];
+        const confettiCount = 100;
+
+        for (let i = 0; i < confettiCount; i++) {
+          setTimeout(() => {
+            const confetti = document.createElement('div');
+            confetti.className = 'confetti';
+            confetti.style.left = Math.random() * 100 + '%';
+            confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            confetti.style.animationDelay = Math.random() * 0.5 + 's';
+            confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+            document.body.appendChild(confetti);
+
+            setTimeout(() => confetti.remove(), 3500);
+          }, i * 30);
+        }
+      }
 
       // Estado de conexión
       socket.on("connect", () => {
@@ -133,10 +171,13 @@
       });
 
       // Iniciar juego
-      document.getElementById("startBtn").addEventListener("click", async () => {
+      startBtn.addEventListener("click", async () => {
         const res = await fetch("/start", { method: "POST" });
         const data = await res.json();
         if (data.status === "sent") {
+          gameInProgress = true;
+          startBtn.disabled = true;
+          scorePanel.classList.add("hidden");
           statusEl.textContent = "Juego iniciado 🚀";
           statusEl.className = "font-bold text-blue-400";
         } else {
@@ -146,16 +187,20 @@
 
       // Juego finalizado
       socket.on("game_over", (data) => {
+        gameInProgress = false;
+        startBtn.disabled = false;
         scorePanel.classList.remove("hidden");
         finalScoreEl.textContent = data.score;
         statusEl.textContent = "Juego finalizado 🏁";
         statusEl.className = "font-bold text-yellow-400";
+        
+        // ¡Confeti!
+        createConfetti();
       });
 
-      // Evento de nivel
+      // Evento de nivel (ya no muestra imagen)
       socket.on("level_up", () => {
-        penguin.classList.remove("hidden");
-        setTimeout(() => penguin.classList.add("hidden"), 2500);
+        // Nivel superado - ya no muestra imagen
       });
 
       // Guardar puntaje

@@ -27,7 +27,7 @@ with app.app_context():
     db.create_all()
 
 # --- Serial ---
-SERIAL_PORT = 'COM9'  # ⚙️ Ajusta según tu puerto
+SERIAL_PORT = 'COM5'  # ⚙️ Ajusta según tu puerto
 SERIAL_BAUD = 115200
 ser = None
 
